@@ -1,5 +1,5 @@
-# .github/workflows/build-ffmpeg-fdkaac.yml
-name: Build FFmpeg with fdk-aac
+# .github/workflows/build-static-ffmpeg-fdkaac.yml
+name: Build Static FFmpeg with fdk-aac (NixOS compatible)
 
 on:
   workflow_dispatch:
@@ -20,7 +20,7 @@ jobs:
         run: |
           sudo apt update
           sudo apt install -y autoconf automake build-essential cmake git libtool \
-            pkg-config texinfo zlib1g-dev libssl-dev nasm
+            pkg-config texinfo zlib1g-dev libssl-dev nasm yasm
 
       - name: Clone and build fdk-aac
         run: |
@@ -33,7 +33,7 @@ jobs:
           make -j$(nproc)
           make install
 
-      - name: Clone and build FFmpeg
+      - name: Clone and build statically linked FFmpeg
         run: |
           cd "$BUILD_DIR"
           git clone https://git.ffmpeg.org/ffmpeg.git
@@ -46,16 +46,23 @@ jobs:
             --extra-libs="-lpthread -lm" \
             --enable-gpl \
             --enable-nonfree \
-            --enable-libfdk_aac
+            --enable-libfdk_aac \
+            --disable-shared \
+            --enable-static \
+            --disable-debug \
+            --disable-doc \
+            --disable-ffplay \
+            --disable-ffprobe \
+            --enable-ffmpeg
           make -j$(nproc)
           make install
 
-      - name: Package FFmpeg binaries
+      - name: Package static ffmpeg binary
         run: |
-          tar -czf ffmpeg-fdkaac.tar.gz -C "$INSTALL_DIR" .
+          tar -czf static-ffmpeg-fdkaac.tar.gz -C "$INSTALL_DIR/bin" ffmpeg
 
-      - name: Upload FFmpeg artifact
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ffmpeg-fdkaac
-          path: ffmpeg-fdkaac.tar.gz
+          name: static-ffmpeg-fdkaac
+          path: static-ffmpeg-fdkaac.tar.gz
