@@ -1,0 +1,61 @@
+# .github/workflows/build-ffmpeg-fdkaac.yml
+name: Build FFmpeg with fdk-aac
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    env:
+      BUILD_DIR: ${{ github.workspace }}/build
+      INSTALL_DIR: ${{ github.workspace }}/ffmpeg_build
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y autoconf automake build-essential cmake git libtool \
+            pkg-config texinfo zlib1g-dev libssl-dev
+
+      - name: Clone and build fdk-aac
+        run: |
+          mkdir -p "$BUILD_DIR"
+          cd "$BUILD_DIR"
+          git clone --depth 1 https://github.com/mstorsjo/fdk-aac
+          cd fdk-aac
+          autoreconf -fiv
+          ./configure --prefix="$INSTALL_DIR" --disable-shared
+          make -j$(nproc)
+          make install
+
+      - name: Clone and build FFmpeg
+        run: |
+          cd "$BUILD_DIR"
+          git clone https://git.ffmpeg.org/ffmpeg.git
+          cd ffmpeg
+          PKG_CONFIG_PATH="$INSTALL_DIR/lib/pkgconfig" ./configure \
+            --prefix="$INSTALL_DIR" \
+            --pkg-config-flags="--static" \
+            --extra-cflags="-I$INSTALL_DIR/include" \
+            --extra-ldflags="-L$INSTALL_DIR/lib" \
+            --extra-libs="-lpthread -lm" \
+            --enable-gpl \
+            --enable-nonfree \
+            --enable-libfdk_aac
+          make -j$(nproc)
+          make install
+
+      - name: Package FFmpeg binaries
+        run: |
+          tar -czf ffmpeg-fdkaac.tar.gz -C "$INSTALL_DIR" .
+
+      - name: Upload FFmpeg artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-fdkaac
+          path: ffmpeg-fdkaac.tar.gz
