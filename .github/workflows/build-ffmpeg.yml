@@ -13,7 +13,7 @@ jobs:
       BUILD: ${{ github.workspace }}/build
 
     steps:
-      - name: Checkout (dummy step for repo context)
+      - name: Checkout (dummy step for context)
         uses: actions/checkout@v4
 
       - name: Install build dependencies
@@ -23,18 +23,17 @@ jobs:
             build-essential autoconf automake cmake git libtool pkg-config \
             nasm yasm zlib1g-dev curl tar
 
-      - name: Set musl-gcc as default compiler
-        run: |
-          echo "CC=musl-gcc" >> $GITHUB_ENV
-          echo "CXX=musl-g++" >> $GITHUB_ENV
+      - name: Set musl-gcc as the default C compiler
+        run: echo "CC=musl-gcc" >> $GITHUB_ENV
 
       - name: Build fdk-aac statically with musl
         run: |
-          mkdir -p "$BUILD" && cd "$BUILD"
+          mkdir -p "$BUILD"
+          cd "$BUILD"
           git clone --depth=1 https://github.com/mstorsjo/fdk-aac
           cd fdk-aac
           autoreconf -fiv
-          ./configure --prefix="$PREFIX" --disable-shared --enable-static CC=musl-gcc
+          ./configure --prefix="$PREFIX" --disable-shared --enable-static
           make -j$(nproc)
           make install
 
