@@ -23,7 +23,7 @@ jobs:
             build-essential autoconf automake cmake git libtool pkg-config \
             nasm yasm zlib1g-dev curl tar
 
-      - name: Set musl-gcc as compiler
+      - name: Set musl-gcc as default compiler
         run: |
           echo "CC=musl-gcc" >> $GITHUB_ENV
           echo "CXX=musl-g++" >> $GITHUB_ENV
@@ -72,3 +72,12 @@ jobs:
           ldd "$PREFIX/bin/ffmpeg" || echo "Statically linked ✔️"
 
       - name: Package artifact
+        run: |
+          cd "$PREFIX/bin"
+          tar -czf ${{ github.workspace }}/ffmpeg-static-musl.tar.gz ffmpeg
+
+      - name: Upload static ffmpeg
+        uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-static-musl
+          path: ffmpeg-static-musl.tar.gz
