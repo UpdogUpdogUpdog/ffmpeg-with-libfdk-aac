@@ -1,5 +1,5 @@
-# .github/workflows/build-static-ffmpeg-fdkaac.yml
-name: Build Static FFmpeg with fdk-aac (NixOS compatible)
+# .github/workflows/build-static-ffmpeg-musl.yml
+name: Build Static FFmpeg with fdk-aac using musl (NixOS-compatible)
 
 on:
   workflow_dispatch:
@@ -9,60 +9,66 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      BUILD_DIR: ${{ github.workspace }}/build
-      INSTALL_DIR: ${{ github.workspace }}/ffmpeg_build
+      PREFIX: ${{ github.workspace }}/static-ffmpeg
+      BUILD: ${{ github.workspace }}/build
 
     steps:
-      - name: Checkout
+      - name: Checkout (dummy step for repo context)
         uses: actions/checkout@v4
 
-      - name: Install dependencies
+      - name: Install build dependencies
         run: |
           sudo apt update
-          sudo apt install -y autoconf automake build-essential cmake git libtool \
-            pkg-config texinfo zlib1g-dev libssl-dev nasm yasm
+          sudo apt install -y musl musl-dev musl-tools \
+            build-essential autoconf automake cmake git libtool pkg-config \
+            nasm yasm zlib1g-dev curl tar
 
-      - name: Clone and build fdk-aac
+      - name: Set musl-gcc as compiler
         run: |
-          mkdir -p "$BUILD_DIR"
-          cd "$BUILD_DIR"
-          git clone --depth 1 https://github.com/mstorsjo/fdk-aac
+          echo "CC=musl-gcc" >> $GITHUB_ENV
+          echo "CXX=musl-g++" >> $GITHUB_ENV
+
+      - name: Build fdk-aac statically with musl
+        run: |
+          mkdir -p "$BUILD" && cd "$BUILD"
+          git clone --depth=1 https://github.com/mstorsjo/fdk-aac
           cd fdk-aac
           autoreconf -fiv
-          ./configure --prefix="$INSTALL_DIR" --disable-shared
+          ./configure --prefix="$PREFIX" --disable-shared --enable-static CC=musl-gcc
           make -j$(nproc)
           make install
 
-      - name: Clone and build statically linked FFmpeg
+      - name: Build FFmpeg statically with musl and fdk-aac
         run: |
-          cd "$BUILD_DIR"
+          cd "$BUILD"
           git clone https://git.ffmpeg.org/ffmpeg.git
           cd ffmpeg
-          PKG_CONFIG_PATH="$INSTALL_DIR/lib/pkgconfig" ./configure \
-            --prefix="$INSTALL_DIR" \
+
+          export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig"
+          export CFLAGS="-static -I$PREFIX/include"
+          export LDFLAGS="-static -L$PREFIX/lib"
+
+          ./configure \
+            --prefix="$PREFIX" \
             --pkg-config-flags="--static" \
-            --extra-cflags="-I$INSTALL_DIR/include" \
-            --extra-ldflags="-L$INSTALL_DIR/lib" \
+            --extra-cflags="$CFLAGS" \
+            --extra-ldflags="$LDFLAGS" \
             --extra-libs="-lpthread -lm" \
             --enable-gpl \
             --enable-nonfree \
             --enable-libfdk_aac \
             --disable-shared \
             --enable-static \
-            --disable-debug \
-            --disable-doc \
             --disable-ffplay \
             --disable-ffprobe \
             --enable-ffmpeg
+
           make -j$(nproc)
           make install
 
-      - name: Package static ffmpeg binary
+      - name: Inspect and verify static binary
         run: |
-          tar -czf static-ffmpeg-fdkaac.tar.gz -C "$INSTALL_DIR/bin" ffmpeg
+          file "$PREFIX/bin/ffmpeg"
+          ldd "$PREFIX/bin/ffmpeg" || echo "Statically linked ✔️"
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: static-ffmpeg-fdkaac
-          path: static-ffmpeg-fdkaac.tar.gz
+      - name: Package artifact
