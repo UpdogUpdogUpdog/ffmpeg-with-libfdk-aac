@@ -80,3 +80,4 @@ jobs:
         with:
           name: ffmpeg-static-musl
           path: ffmpeg-static-musl.tar.gz
+          retention-days: 1
